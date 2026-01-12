@@ -3,10 +3,13 @@ Description=EC2 Monitoring Agent
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /opt/monitor-agent/agent/agent.py
-WorkingDirectory=/opt/monitor-agent
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/monitor_agent
+ExecStart=/opt/monitor_agent/venv/bin/python agent.py
 Restart=always
-User=ec2-user
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

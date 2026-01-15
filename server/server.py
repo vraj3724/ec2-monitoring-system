@@ -1,12 +1,28 @@
 from flask import Flask, request, jsonify, send_from_directory
 from datetime import datetime
 import os
+import json
 
 app = Flask(__name__)
 
 # -------------------- STORAGE --------------------
-METRICS = {}   # { service: [metric, ...] }
-ALERTS = {}    # { service: [alert, ...] }
+METRICS = {}          # { service: [metric, ...] }
+ALERTS = {}           # { service: [alert, ...] }
+
+# Persist known services so they don’t disappear
+SERVICES_FILE = "/tmp/services.json"
+
+def load_services():
+    if os.path.exists(SERVICES_FILE):
+        with open(SERVICES_FILE, "r") as f:
+            return set(json.load(f))
+    return set()
+
+def save_services():
+    with open(SERVICES_FILE, "w") as f:
+        json.dump(sorted(SERVICES), f)
+
+SERVICES = load_services()
 
 # -------------------- HEALTH --------------------
 @app.route("/health")
@@ -27,6 +43,11 @@ def ingest():
     if not service or not raw_ts:
         return jsonify({"error": "missing agent_id or timestamp"}), 400
 
+    # Register service permanently
+    if service not in SERVICES:
+        SERVICES.add(service)
+        save_services()
+
     # ISO timestamp → epoch seconds
     ts = int(datetime.fromisoformat(raw_ts.replace("Z", "+00:00")).timestamp())
 
@@ -35,8 +56,10 @@ def ingest():
         "cpu": metrics.get("cpu_percent", 0),
         "memory": metrics.get("memory_percent", 0),
         "disk": metrics.get("disk_percent", 0),
-        "net_in": 0,
-        "net_out": 0
+
+        # ✅ NETWORK (from agent)
+        "net_in": metrics.get("network_in_bytes_per_sec", 0),
+        "net_out": metrics.get("network_out_bytes_per_sec", 0),
     }
 
     METRICS.setdefault(service, []).append(normalized)
@@ -56,7 +79,7 @@ def ingest():
 # -------------------- FRONTEND APIs --------------------
 @app.route("/services")
 def services():
-    return jsonify(sorted(METRICS.keys()))
+    return jsonify(sorted(SERVICES))
 
 @app.route("/metrics/<service>")
 def metrics(service):
@@ -76,7 +99,6 @@ def status(service):
         return jsonify({"status": "DOWN"})
 
     return jsonify({"status": "UP"})
-
 
 @app.route("/alerts/<service>")
 def alerts(service):

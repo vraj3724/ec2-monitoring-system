@@ -64,9 +64,19 @@ def metrics(service):
 
 @app.route("/status/<service>")
 def status(service):
-    if service in METRICS and METRICS[service]:
-        return jsonify({"status": "UP"})
-    return jsonify({"status": "DOWN"})
+    data = METRICS.get(service, [])
+    if not data:
+        return jsonify({"status": "DOWN"})
+
+    last_ts = data[-1]["timestamp"]
+    now = int(datetime.utcnow().timestamp())
+
+    # If no data in last 15 seconds → DOWN
+    if now - last_ts > 15:
+        return jsonify({"status": "DOWN"})
+
+    return jsonify({"status": "UP"})
+
 
 @app.route("/alerts/<service>")
 def alerts(service):

@@ -1,4 +1,4 @@
-const BASE_URL = "backend api";
+const BASE_URL = "";
 
 export async function getServices() {
   return fetch(`${BASE_URL}/services`).then(r => r.json());
